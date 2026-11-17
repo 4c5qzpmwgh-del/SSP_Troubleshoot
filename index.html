@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>业主回报关注单一玩家 - 排查 SOP 决策与话术生成器</title>
+  <!-- 加载 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 加载 Inter 与 Noto Sans SC 字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans SC', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+    /* 自定义滚动条美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+    .step-fade-in {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- 顶部导航栏 -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3.5 gap-3">
+        <!-- 标题区 -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-inner shrink-0">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight">业主回报关注单一玩家</h1>
+            <p class="text-xs text-slate-400">排查 SOP 结果导航与公版话术自动生成</p>
+          </div>
+        </div>
+
+        <!-- 主要分页切换 Tabs -->
+        <nav class="flex bg-slate-800 p-1 rounded-xl self-start sm:self-auto" role="tablist">
+          <button id="tab-btn-wizard" onclick="switchMainTab('wizard')" role="tab" aria-selected="true"
+            class="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 bg-indigo-600 text-white shadow">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>SSP异常会员查询结果生成</span>
+          </button>
+          <button id="tab-btn-reference" onclick="switchMainTab('reference')" role="tab" aria-selected="false"
+            class="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 text-slate-300 hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>完整流程与公版参考手册</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- 全域 Toast 通知容器 (取代 alert) -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ===================================================================== -->
+    <!-- 分页 1：交互式排查导航与公版生成                                       -->
+    <!-- ===================================================================== -->
+    <section id="panel-wizard" class="space-y-6">
+
+      <!-- 顶部状态栏：阶段指示 + 重置与快捷按钮 -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 mr-1">当前阶段：</span>
+          <span id="stage-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+            阶段 1：主流程分流
+          </span>
+          <span id="step-count-badge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+            第 1 步
+          </span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="jumpDirectToGenerator()"
+            class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span>直接开启话术生成器</span>
+          </button>
+          <button id="btn-prev-step" onclick="goBackStep()" disabled
+            class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>返回上一步</span>
+          </button>
+          <button onclick="resetWizard()"
+            class="px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>一键重置</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 决策向导主体区 (左右分栏：左侧决策卡片 + 右侧历史轨迹与门槛速查) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 左侧：当前决策步骤卡片 (8 栏) -->
+        <div class="lg:col-span-8 space-y-6">
+          <div id="wizard-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden step-fade-in">
+            <!-- 动态渲染当前步骤内容 -->
+          </div>
+        </div>
+
+        <!-- 右侧：决策历史轨迹 & 核心规则速查 (4 栏) -->
+        <div class="lg:col-span-4 space-y-6">
+          <!-- 决策轨迹 -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span>排查决策轨迹</span>
+              </h3>
+              <span id="history-count" class="text-xs text-slate-400">0 项记录</span>
+            </div>
+            <div id="history-list" class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              <p class="text-xs text-slate-400 italic py-4 text-center">尚未进行决策，请依左侧提示操作。</p>
+            </div>
+          </div>
+
+          <!-- 快速规则小抄 -->
+          <div class="bg-slate-800 text-slate-100 rounded-2xl shadow-sm p-5 space-y-4">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>核心门槛与重点游戏速查</span>
+            </h3>
+
+            <div class="space-y-2 text-xs">
+              <div class="bg-slate-700/70 rounded-xl p-3 border border-slate-600/60">
+                <div class="font-semibold text-amber-300 mb-1">排查门槛定义（需同时成立）</div>
+                <ul class="space-y-1 text-slate-200 list-disc list-inside">
+                  <li>总投注 <span class="font-mono font-bold text-white">&gt; 1,000</span></li>
+                  <li>总盈亏 <span class="font-mono font-bold text-rose-300">&lt; -500</span></li>
+                  <li>注单数 <span class="font-mono font-bold text-white">&gt; N</span>（PG电子 <span class="text-amber-300 font-bold">N=200</span>｜SS棋牌 <span class="text-amber-300 font-bold">N=30</span>）</li>
+                </ul>
+              </div>
+
+              <div class="bg-slate-700/70 rounded-xl p-3 border border-slate-600/60">
+                <div class="font-semibold text-emerald-300 mb-1.5">重点游戏清单</div>
+                <div class="space-y-1.5">
+                  <div>
+                    <span class="inline-block px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 font-semibold mr-1">PG电子</span>
+                    <span class="text-slate-200">麻将胡了、麻将胡了 2、寻宝黄金城、赏金大对决</span>
+                  </div>
+                  <div>
+                    <span class="inline-block px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-200 font-semibold mr-1">SS棋牌</span>
+                    <span class="text-slate-200">抢庄牛牛、看三张抢庄牛牛、看四张抢庄牛牛</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- 智慧公版与话术自动生成器区 (当到达公版结论或点击手动展开时显示)    -->
+      <!-- =================================================================== -->
+      <div id="generator-section" class="hidden pt-2 step-fade-in">
+        <div class="bg-white rounded-2xl shadow-md border-2 border-indigo-500/30 overflow-hidden">
+          <!-- 生成器标题栏 -->
+          <div class="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 text-xs font-bold bg-white/20 rounded-md">REPORT GENERATOR</span>
+                <h2 class="text-lg font-bold">智慧公版与话术自动生成器</h2>
+              </div>
+              <p id="generator-subtitle" class="text-xs text-indigo-100 mt-0.5">已依据流程决策结果自动带入排查时间与对应话术</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="fillExampleData()"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/30 transition flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                <span>填入图四范例数据</span>
+              </button>
+              <button onclick="clearGeneratorForm()"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900/30 hover:bg-slate-900/50 text-white transition">
+                清空数据
+              </button>
+            </div>
+          </div>
+
+          <!-- 生成器双栏布局：左侧填写表单 + 右侧实时预览与复制 -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+
+            <!-- 左侧：数据输入与话术勾选 (7 栏) -->
+            <div class="lg:col-span-7 p-6 space-y-6">
+
+              <!-- 1. 话术组合设定 -->
+              <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-bold text-slate-800">1. 话术组合设定（已自动勾选，可手动微调）</label>
+                  <span id="script-rule-badge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    公版基础模板
+                  </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-indigo-400 transition">
+                    <input type="checkbox" id="chk-script-1" onchange="updateReportPreview()" class="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500">
+                    <div>
+                      <span class="font-bold text-slate-800">话术 1（游戏整体稳定）</span>
+                      <p class="text-slate-500 mt-0.5">游戏整体 RTP &lt; 99% 时勾选</p>
+                    </div>
+                  </label>
+                  <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-indigo-400 transition">
+                    <input type="checkbox" id="chk-script-2" onchange="updateReportPreview()" class="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500">
+                    <div>
+                      <span class="font-bold text-slate-800">话术 2（单数少易波动）</span>
+                      <p class="text-slate-500 mt-0.5">SOP 2 未达门槛时勾选</p>
+                    </div>
+                  </label>
+                  <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-indigo-400 transition">
+                    <input type="checkbox" id="chk-script-3" onchange="updateReportPreview()" class="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500">
+                    <div>
+                      <span class="font-bold text-slate-800">话术 3（重点游戏特性）</span>
+                      <p class="text-slate-500 mt-0.5">自动依 PG电子 / SS棋牌 切换文案</p>
+                    </div>
+                  </label>
+                  <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-indigo-400 transition">
+                    <input type="checkbox" id="chk-script-4" onchange="updateReportPreview()" class="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500">
+                    <div>
+                      <span class="font-bold text-slate-800">话术 4（盈亏玩家随机切换）</span>
+                      <p class="text-slate-500 mt-0.5">游戏整体 RTP &lt; 99% 时搭配使用</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 2. 整体资讯填写 -->
+              <div class="space-y-3">
+                <h3 class="text-sm font-bold text-slate-800">2. 整体排查资讯</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">排查玩家账号</label>
+                    <input type="text" id="input-player-account" oninput="updateReportPreview()" placeholder="例：ce4fac4f123e481b"
+                      class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">排查时间周期</label>
+                    <div class="flex gap-1.5">
+                      <input type="text" id="input-time-period" oninput="updateReportPreview()" placeholder="例：11 月 或 10/1 ~ 11/16"
+                        class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="flex gap-1.5 mt-1">
+                      <button type="button" onclick="setQuickPeriod('thisMonth')" class="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">填入本月</button>
+                      <button type="button" onclick="setQuickPeriod('lastMonthToToday')" class="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">上月1号~今日</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">游戏类型（供应商）</label>
+                    <select id="input-game-type" onchange="handleGameTypeChange()"
+                      class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                      <option value="PG电子">PG电子</option>
+                      <option value="SS棋牌">SS棋牌</option>
+                      <option value="自定义">自定义类型...</option>
+                    </select>
+                    <input type="text" id="input-custom-game-type" oninput="updateReportPreview()" placeholder="输入自定义游戏类型"
+                      class="hidden mt-1.5 w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none">
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. 排查游戏明细（动态多款游戏） -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-sm font-bold text-slate-800">3. 排查游戏数据明细</h3>
+                  <button type="button" onclick="addGameEntry()"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>新增第 <span id="next-game-num">2</span> 款游戏</span>
+                  </button>
+                </div>
+
+                <div id="games-container" class="space-y-4">
+                  <!-- 动态游戏卡片渲染处 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 右侧：实时报告预览与一键复制 (5 栏) -->
+            <div class="lg:col-span-5 p-6 bg-slate-50 flex flex-col">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-800">实时公版报告预览</h3>
+                  <p class="text-xs text-slate-500">格式已完全对齐标准公版排版</p>
+                </div>
+                <button id="btn-copy-report" onclick="copyReportText()"
+                  class="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition flex items-center gap-1.5">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                  <span id="copy-btn-text">一键复制完整报告</span>
+                </button>
+              </div>
+
+              <div class="flex-1 flex flex-col">
+                <textarea id="report-preview" rows="28"
+                  class="w-full flex-1 p-4 text-xs sm:text-sm font-mono leading-relaxed bg-white text-slate-800 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none resize-y shadow-inner"></textarea>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- 分页 2：完整流程与公版参考手册                                         -->
+    <!-- ===================================================================== -->
+    <section id="panel-reference" class="hidden space-y-6 step-fade-in">
+
+      <!-- 参考手册子导航 -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap gap-2">
+          <a href="#ref-stage1" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">图一：主流程与门槛定义</a>
+          <a href="#ref-sop1" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition">图二：SOP 1 完整流程</a>
+          <a href="#ref-sop2" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition">图三：SOP 2 完整流程</a>
+          <a href="#ref-template" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 transition">图四：公版与范例对照</a>
+        </div>
+        <button onclick="switchMainTab('wizard')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition">
+          返回交互导航 →
+        </button>
+      </div>
+
+      <!-- 卡片 1：主流程与门槛定义 (图一) -->
+      <div id="ref-stage1" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
+        <div class="border-b border-slate-200 pb-3 flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold text-indigo-600 uppercase">CHART 01</span>
+            <h2 class="text-lg font-bold text-slate-900">阶段 1：业主回报关注单一玩家（主流程分流）</h2>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">入口：后台数据报表 -&gt; 玩家报表</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <!-- 基础操作与门槛 -->
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center">1</span>
+              <span>初步查询与排查门槛定义</span>
+            </h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              至 <span class="font-semibold text-blue-600">后台数据报表 -&gt; 玩家报表</span>，复制贴上玩家账号搜索（其他条件不用改）。
+            </p>
+            <div class="bg-white rounded-lg p-3 border border-slate-200 space-y-1.5 text-xs">
+              <div class="font-bold text-slate-800">需要排查的游戏定义（以下 3 点需同时成立）：</div>
+              <p class="text-slate-700">1. 总投注 <span class="font-mono font-bold text-indigo-600">&gt; 1,000</span></p>
+              <p class="text-slate-700">2. 总盈亏 <span class="font-mono font-bold text-rose-600">&lt; -500</span></p>
+              <p class="text-slate-700">3. 注单数 <span class="font-mono font-bold text-indigo-600">&gt; N</span>：</p>
+              <ul class="pl-4 list-disc text-slate-600 space-y-0.5">
+                <li><strong>PG电子</strong>：N = 200</li>
+                <li><strong>SS棋牌</strong>：N = 30</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 分支 A：有指定单一游戏 -->
+          <div class="bg-blue-50/60 rounded-xl p-4 border border-blue-200 space-y-3">
+            <h3 class="text-sm font-bold text-blue-900 flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">A</span>
+              <span>业主「有指定」单一游戏</span>
+            </h3>
+            <div class="space-y-2 text-xs">
+              <div class="p-3 bg-white rounded-lg border border-blue-100">
+                <p class="font-semibold text-slate-800 mb-1">检查指定游戏是否同时满足 3 项门槛：</p>
+                <p class="text-slate-600">单数 &gt; N 且 总投注 &gt; 1,000 且 总盈亏 &lt; -500</p>
+              </div>
+              <div class="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-100/80 text-emerald-900 font-semibold">
+                <span class="px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[11px]">是</span>
+                <span>进入 SOP 1（业主回报的游戏）</span>
+              </div>
+              <div class="flex items-center gap-2 p-2.5 rounded-lg bg-amber-100/80 text-amber-900 font-semibold">
+                <span class="px-1.5 py-0.5 bg-amber-600 text-white rounded text-[11px]">否</span>
+                <span>进入 SOP 2</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分支 B：无指定单一游戏 -->
+          <div class="bg-indigo-50/60 rounded-xl p-4 border border-indigo-200 space-y-3">
+            <h3 class="text-sm font-bold text-indigo-900 flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center">B</span>
+              <span>业主「未指定」单一游戏</span>
+            </h3>
+            <div class="space-y-2 text-xs">
+              <p class="text-slate-700">从报表中挑出符合 3 项门槛的游戏，计算符合数量：</p>
+              <div class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-200/80 text-slate-800 font-semibold">
+                <span class="px-1.5 py-0.5 bg-slate-600 text-white rounded text-[11px]">0 款</span>
+                <span>结论：询问业主要排查的原因</span>
+              </div>
+              <div class="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-100/80 text-emerald-900 font-semibold">
+                <span class="px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[11px]">1 款</span>
+                <span>进入 SOP 1（挑出的排查游戏）</span>
+              </div>
+              <div class="flex items-center gap-2 p-2.5 rounded-lg bg-rose-100/80 text-rose-900 font-semibold">
+                <span class="px-1.5 py-0.5 bg-rose-600 text-white rounded text-[11px]">&gt; 1 款</span>
+                <span>结论：转交数值排查</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡片 2：SOP 1 完整规则与搜索条件 (图二) -->
+      <div id="ref-sop1" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
+        <div class="border-b border-slate-200 pb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span class="text-xs font-bold text-blue-600 uppercase">CHART 02</span>
+            <h2 class="text-lg font-bold text-slate-900">阶段 2：SOP 1（针对单一目标游戏 G）</h2>
+          </div>
+          <span class="text-xs text-rose-600 font-semibold">注：红字为可替换部分（游戏 G）</span>
+        </div>
+
+        <!-- 重点游戏清单横幅 -->
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold shrink-0">PG电子重点游戏</span>
+            <span class="font-medium text-emerald-950">麻将胡了、麻将胡了 2、寻宝黄金城、赏金大对决</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-lg bg-teal-600 text-white font-bold shrink-0">SS棋牌重点游戏</span>
+            <span class="font-medium text-teal-950">抢庄牛牛、看三张抢庄牛牛、看四张抢庄牛牛</span>
+          </div>
+        </div>
+
+        <!-- 搜索条件表格 A & B & C -->
+        <div class="space-y-4">
+          <div>
+            <h4 class="text-xs font-bold text-slate-700 mb-1.5">【搜索条件 A】后台数据报表 -&gt; 游戏报表（本月查询游戏 G）</h4>
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="min-w-full text-xs text-center divide-y divide-slate-200">
+                <thead class="bg-slate-100 text-slate-700 font-semibold">
+                  <tr>
+                    <th class="px-3 py-2">统计周期</th>
+                    <th class="px-3 py-2">时间区间</th>
+                    <th class="px-3 py-2">统计方式</th>
+                    <th class="px-3 py-2">游戏类型</th>
+                    <th class="px-3 py-2">游戏</th>
+                    <th class="px-3 py-2">房间/单线投注</th>
+                    <th class="px-3 py-2">包网</th>
+                    <th class="px-3 py-2">代理</th>
+                    <th class="px-3 py-2">币种</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-x divide-slate-200">
+                  <tr>
+                    <td class="px-3 py-2 font-medium">月统计</td>
+                    <td class="px-3 py-2 text-slate-500">(默认)</td>
+                    <td class="px-3 py-2">按游戏统计</td>
+                    <td class="px-3 py-2 text-rose-600 font-semibold">G 的类型</td>
+                    <td class="px-3 py-2 text-rose-600 font-semibold">G 的名称</td>
+                    <td class="px-3 py-2 text-slate-500">(默认)</td>
+                    <td class="px-3 py-2">业主所属包网</td>
+                    <td class="px-3 py-2">业主所属代理</td>
+                    <td class="px-3 py-2">全部币种</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold text-slate-700 mb-1.5">【搜索条件 B】后台数据报表 -&gt; 玩家报表（回报日期 &lt; 7 号时，查上个月 1 号 ~ 今日）</h4>
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="min-w-full text-xs text-center divide-y divide-slate-200">
+                <thead class="bg-slate-100 text-slate-700 font-semibold">
+                  <tr>
+                    <th class="px-3 py-2">时间区间</th>
+                    <th class="px-3 py-2">统计方式</th>
+                    <th class="px-3 py-2">游戏类型</th>
+                    <th class="px-3 py-2">选择游戏</th>
+                    <th class="px-3 py-2">房间/单线投注</th>
+                    <th class="px-3 py-2">统计周期</th>
+                    <th class="px-3 py-2">包网/代理/币种</th>
+                    <th class="px-3 py-2">玩家账号</th>
+                    <th class="px-3 py-2">玩家 ID</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-x divide-slate-200">
+                  <tr>
+                    <td class="px-3 py-2 font-semibold text-indigo-700">上个月 1 号 ~ 今日</td>
+                    <td class="px-3 py-2">按游戏统计</td>
+                    <td class="px-3 py-2 text-rose-600 font-semibold">G 的类型</td>
+                    <td class="px-3 py-2 text-rose-600 font-semibold">G 的名称</td>
+                    <td class="px-3 py-2 text-slate-500">(默认)</td>
+                    <td class="px-3 py-2 font-medium">所有时间统计</td>
+                    <td class="px-3 py-2 text-slate-500">(默认)</td>
+                    <td class="px-3 py-2">业主回报的玩家账号</td>
+                    <td class="px-3 py-2 text-slate-400">(空)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold text-slate-700 mb-1.5">【搜索条件 C】后台数据报表 -&gt; 游戏报表（以上个月 1 号 ~ 今日重新搜索游戏 G）</h4>
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="min-w-full text-xs text-center divide-y divide-slate-200">
+                <thead class="bg-slate-100 text-slate-700 font-semibold">
+                  <tr>
+                    <th class="px-3 py-2">统计周期</th>
+                    <th class="px-3 py-2">时间区间</th>
+                    <th class="px-3 py-2">统计方式</th>
+                    <th class="px-3 py-2">游戏类型</th>
+                    <th class="px-3 py-2">游戏</th>
+                    <th class="px-3 py-2">房间/单线投注</th>
+                    <th class="px-3 py-2">包网</th>
+                    <th class="px-3 py-2">代理</th>
+                    <th class="px-3 py-2">币种</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-x divide-slate-200">
+                  <tr>
+                    <td class="px-3 py-2 font-medium">所有时间统计</td>
+                    <td class="px-3 py-2 font-semibold text-indigo-700">上个月 1 号 ~ 今日</td>
+                    <td class="px-3 py-2">按游戏统计</td>
+                    <td class="px-3 py-2 text-rose-600 font-semibold">G 的类型</td>
+                    <td class="px-3 py-2 text-rose-600 font-semibold">G 的名称</td>
+                    <td class="px-3 py-2 text-slate-500">(默认)</td>
+                    <td class="px-3 py-2">业主所属包网</td>
+                    <td class="px-3 py-2">业主所属代理</td>
+                    <td class="px-3 py-2">全部币种</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SOP 1 决策树摘要 -->
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2 text-xs">
+          <h4 class="font-bold text-slate-800">SOP 1 判断逻辑总览：</h4>
+          <ul class="space-y-1.5 text-slate-700">
+            <li>• <strong>本月游戏整体 RTP &lt; 99%</strong>：重点游戏 → <span class="text-amber-700 font-semibold">以本月为排查时间，公版 + 话术 1, 3, 4</span>；非重点游戏 → <span class="text-amber-700 font-semibold">以本月为排查时间，公版 + 话术 1, 4</span>。</li>
+            <li>• <strong>本月游戏整体 RTP &ge; 99% 且 回报日期 &ge; 7 号</strong>：直接 <span class="text-rose-600 font-bold">转交数值排查</span>。</li>
+            <li>• <strong>本月游戏整体 RTP &ge; 99% 且 回报日期 &lt; 7 号</strong>：改查「上个月 1 号 ~ 今日」：
+              <div class="pl-4 mt-1 space-y-1 text-slate-600">
+                <div>1. 区间内 <strong>玩家 RTP &lt; 99%</strong> 且 <strong>游戏整体 RTP &lt; 99%</strong>：重点游戏 → <span class="text-amber-700 font-semibold">公版 + 话术 1, 3, 4</span>；非重点 → <span class="text-amber-700 font-semibold">公版 + 话术 1, 4</span>。</div>
+                <div>2. 区间内 <strong>玩家 RTP &lt; 99%</strong> 且 <strong>游戏整体 RTP &ge; 99%</strong>：重点游戏 → <span class="text-amber-700 font-semibold">公版 + 话术 3</span>；非重点 → <span class="text-amber-700 font-semibold">仅公版</span>。</div>
+                <div>3. 区间内 <strong>玩家 RTP &ge; 99%</strong> 且 <strong>游戏整体 RTP &lt; 99%</strong>：重点游戏 → <span class="text-amber-700 font-semibold">公版 + 话术 1, 3, 4</span>；非重点 → <span class="text-amber-700 font-semibold">公版 + 话术 1, 4</span>。</div>
+                <div>4. 区间内 <strong>玩家 RTP &ge; 99%</strong> 且 <strong>游戏整体 RTP &ge; 99%</strong>：<span class="text-rose-600 font-bold">转交数值排查</span>。</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 卡片 3：SOP 2 完整规则 (图三) -->
+      <div id="ref-sop2" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+        <div class="border-b border-slate-200 pb-3">
+          <span class="text-xs font-bold text-emerald-600 uppercase">CHART 03</span>
+          <h2 class="text-lg font-bold text-slate-900">阶段 3：SOP 2（指定游戏未达排查门槛）</h2>
+        </div>
+
+        <p class="text-xs text-slate-600">
+          至 <span class="font-semibold text-blue-600">后台数据报表 -&gt; 游戏报表</span> 搜索业主回报的游戏（统计周期：月统计｜时间区间：默认｜统计方式：按游戏统计｜包网/代理：业主所属｜币种：全部币种）：
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div class="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+            <div class="font-bold text-amber-900">情况 A：游戏整体 RTP &lt; 99%</div>
+            <p class="text-slate-700">• <strong>是重点游戏</strong> → <span class="font-semibold text-amber-800">以本月为排查时间，公版 + 话术 1, 2, 3, 4</span></p>
+            <p class="text-slate-700">• <strong>非重点游戏</strong> → <span class="font-semibold text-amber-800">以本月为排查时间，公版 + 话术 1, 2, 4</span></p>
+          </div>
+          <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+            <div class="font-bold text-emerald-900">情况 B：游戏整体 RTP &ge; 99%</div>
+            <p class="text-slate-700">• <strong>是重点游戏</strong> → <span class="font-semibold text-emerald-800">以本月为排查时间，公版 + 话术 2, 3</span></p>
+            <p class="text-slate-700">• <strong>非重点游戏</strong> → <span class="font-semibold text-emerald-800">以本月为排查时间，公版 + 话术 2</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡片 4：公版与范例对照 (图四) -->
+      <div id="ref-template" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+        <div class="border-b border-slate-200 pb-3 flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold text-amber-600 uppercase">CHART 04</span>
+            <h2 class="text-lg font-bold text-slate-900">阶段 4：公版结构与标准范例对照</h2>
+          </div>
+          <button onclick="switchMainTab('wizard'); jumpDirectToGenerator(); fillExampleData();"
+            class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition">
+            在生成器中加载此范例
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- 左侧：公版结构 -->
+          <div>
+            <div class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+              <span>公版模板（红字为动态替换栏位，橘字为条件式话术）</span>
+            </div>
+            <pre class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-400 text-xs font-mono leading-relaxed overflow-x-auto text-slate-800">====== 【排查结论】 ======
+★ 判断结果正常
+<span class="text-amber-600 font-semibold">(话术 1) ‧ 排查时间游戏整体数据稳定，确保业主正盈利。</span>
+<span class="text-amber-600 font-semibold">(话术 2) ‧ 排查时间玩家根据当前单数，数据易产生波动。</span>
+‧ 综观玩家整体历程，正盈利局数与盈利金额稳定，落于随机开奖结果。
+‧ 逐局排查玩家高盈利局，游戏内容正常。
+
+====== 【整体资讯】 ======
+排查玩家账号：<span class="text-rose-600 font-semibold">玩家账号</span>
+排查时间周期：<span class="text-rose-600 font-semibold">排查时间</span>
+
+游戏类型：<span class="text-rose-600 font-semibold">排查游戏供应商</span>
+排查游戏：<span class="text-rose-600 font-semibold">排查游戏名称</span>
+
+『<span class="text-rose-600 font-semibold">排查游戏名称 1</span>』
+游戏总局数：<span class="text-rose-600 font-semibold">游戏总局数</span>
+总 RTP：<span class="text-rose-600 font-semibold">游戏总RTP</span>
+总投注：<span class="text-rose-600 font-semibold">游戏总投注</span>
+总派彩：<span class="text-rose-600 font-semibold">游戏总派彩</span>
+总盈亏：<span class="text-rose-600 font-semibold">游戏总亏损</span>
+
+玩家游戏局数：<span class="text-rose-600 font-semibold">玩家总局数</span>
+玩家RTP：<span class="text-rose-600 font-semibold">玩家RTP</span>
+玩家投注：<span class="text-rose-600 font-semibold">玩家总投注</span>
+玩家派彩：<span class="text-rose-600 font-semibold">玩家总派彩</span>
+玩家盈亏：<span class="text-rose-600 font-semibold">玩家总盈亏</span>
+
+====== 【额外资讯】 ======
+玩家已在关注清单内，若有任何问题，会即时调整。
+
+<span class="text-amber-600 font-semibold">(话术 3 - PG电子) PG 重点游戏名称深受玩家喜爱，其低机率高赔付的大奖设计持续勾引玩家投注。</span>
+
+<span class="text-amber-600 font-semibold">(话术 3 - SS棋牌) SS 抢庄系列深受玩家喜爱，因其能频繁开出大输赢的规则，赋予玩家盈利的希望并持续投注。</span>
+
+<span class="text-amber-600 font-semibold">(话术 4) 稳定的游戏数据是由盈利玩家及亏损玩家共同组成，两者身份会随游戏过程随机切换。</span>
+
+目前游戏正常，请业主放心。</pre>
+          </div>
+
+          <!-- 右侧：范例 -->
+          <div>
+            <div class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>实际回复范例（SS棋牌多游戏案例）</span>
+            </div>
+            <pre class="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-400 text-xs font-mono leading-relaxed overflow-x-auto text-slate-800">====== 【排查结论】 ======
+★ 判断结果正常
+‧ 11 月游戏整体数据稳定，确保业主正盈利。
+‧ 10/1 ~ 11/16 玩家根据当前单数，数据易产生波动。
+‧ 综观玩家整体历程，正盈利局数与盈利金额稳定，落于随机开奖结果。
+‧ 逐局排查玩家高盈利局，游戏内容正常。
+
+====== 【整体资讯】 ======
+排查玩家账号：ce4fac4f123e481b
+排查时间周期：11 月
+
+游戏类型：SS棋牌
+排查游戏：看三张抢庄牛牛、看四张抢庄牛牛
+
+『看三张抢庄牛牛』
+游戏总局数：1,753
+总 RTP：97.85%
+总投注：32,207
+总派彩：33,472
+总盈亏：+734
+
+玩家游戏局数：97
+玩家RTP：101.5%
+玩家投注：1,218
+玩家派彩：1,236
+玩家盈亏：+18
+
+『看四张抢庄牛牛』
+游戏总局数：755
+总 RTP：97.19%
+总投注：33,333
+总派彩：32,395
+总盈亏：+937
+
+玩家游戏局数：36
+玩家RTP：143.57%
+玩家投注：1,126
+玩家派彩：1,616
+玩家盈亏：+490
+
+====== 【额外资讯】 ======
+玩家已在关注清单内，若有任何问题，会即时调整。
+
+SS 抢庄系列深受玩家喜爱，因其能频繁开出大输赢的规则，赋予玩家盈利的希望并持续投注。
+
+稳定的游戏数据是由盈利玩家及亏损玩家共同组成，两者身份会随游戏过程随机切换。
+
+目前游戏正常，请业主放心。</pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+      <span>业主回报关注单一玩家排查 SOP 决策辅助系统</span>
+      <span>完整了流程追踪、自动话术组合与标准公版一键生成</span>
+    </div>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- JavaScript 决策引擎与报告生成逻辑                                      -->
+  <!-- ===================================================================== -->
+  <script>
+    // 重点游戏定义清单（简体中文）
+    const KEY_GAMES = {
+      'PG电子': ['麻将胡了', '麻将胡了 2', '寻宝黄金城', '赏金大对决'],
+      'SS棋牌': ['抢庄牛牛', '看三张抢庄牛牛', '看四张抢庄牛牛']
+    };
+
+    // 决策树节点定义（完整还原四张流程图，全简体中文）
+    const DECISION_NODES = {
+      'START': {
+        stage: '阶段 1：主流程分流',
+        badgeColor: 'bg-indigo-100 text-indigo-800',
+        title: '节点 Q1：业主是否有指定单一游戏？',
+        instruction: {
+          type: 'info',
+          title: '前置操作指引',
+          text: '请至「后台数据报表 -> 玩家报表」，搜索业主回报的玩家账号（1. 复制贴上玩家账号搜索；2. 其他条件不用改）。'
+        },
+        options: [
+          { label: '是（业主有指定单一游戏）', next: 'Q2', style: 'primary' },
+          { label: '否（业主未指定单一游戏）', next: 'Q3', style: 'secondary' }
+        ]
+      },
+
+      'Q2': {
+        stage: '阶段 1：主流程分流',
+        badgeColor: 'bg-indigo-100 text-indigo-800',
+        title: '节点 Q2：指定游戏的单数 > N 吗？',
+        instruction: {
+          type: 'criteria',
+          title: '注单数阈值说明（N）',
+          items: [
+            '• PG电子：N = 200（指定游戏注单数需 > 200）',
+            '• SS棋牌：N = 30（指定游戏注单数需 > 30）'
+          ]
+        },
+        options: [
+          { label: '是（指定游戏单数 > N）', next: 'Q2_2', style: 'primary' },
+          {
+            label: '否（指定游戏单数 <= N）→ 进入 SOP 2',
+            next: 'SOP2_STEP1',
+            contextUpdate: { gameSource: '业主回报的游戏', sopMode: 'SOP 2' },
+            style: 'amber'
+          }
+        ]
+      },
+
+      'Q2_2': {
+        stage: '阶段 1：主流程分流',
+        badgeColor: 'bg-indigo-100 text-indigo-800',
+        title: '节点 Q2_2：指定游戏是否同时满足 总投注 > 1,000 且 总盈亏 < -500？',
+        instruction: {
+          type: 'criteria',
+          title: '金额门槛检查（以下 2 点需同时成立）',
+          items: [
+            '1. 总投注 > 1,000',
+            '2. 总盈亏 < -500'
+          ]
+        },
+        options: [
+          {
+            label: '是（两项皆满足）→ 进入 SOP 1（业主回报的游戏）',
+            next: 'SOP1_STEP1',
+            contextUpdate: { gameSource: '业主回报的游戏', sopMode: 'SOP 1' },
+            style: 'emerald'
+          },
+          {
+            label: '否（任一不满足）→ 进入 SOP 2',
+            next: 'SOP2_STEP1',
+            contextUpdate: { gameSource: '业主回报的游戏', sopMode: 'SOP 2' },
+            style: 'amber'
+          }
+        ]
+      },
+
+      'Q3': {
+        stage: '阶段 1：主流程分流',
+        badgeColor: 'bg-indigo-100 text-indigo-800',
+        title: '节点 Q3：挑选需要排查的游戏后，是否有需要排查的游戏？',
+        instruction: {
+          type: 'criteria',
+          title: '需要排查的游戏定义（以下 3 点需同时成立）',
+          items: [
+            '1. 总投注 > 1,000',
+            '2. 总盈亏 < -500',
+            '3. 注单数 > N（PG电子 N = 200；SS棋牌 N = 30）'
+          ]
+        },
+        options: [
+          { label: '是（有符合条件的排查游戏）', next: 'Q3_2', style: 'primary' },
+          { label: '否（无任何游戏符合条件）→ 询问业主要排查的原因', next: 'END_ASK_REASON', style: 'danger' }
+        ]
+      },
+
+      'Q3_2': {
+        stage: '阶段 1：主流程分流',
+        badgeColor: 'bg-indigo-100 text-indigo-800',
+        title: '节点 Q3_2：需要排查的游戏数量 = 1 吗？',
+        instruction: {
+          type: 'info',
+          title: '数量分流判断',
+          text: '请统计同时满足「总投注 > 1,000、总盈亏 < -500、注单数 > N」的游戏款数。'
+        },
+        options: [
+          {
+            label: '是（需要排查的游戏数量 = 1）→ 进入 SOP 1（挑出的排查游戏）',
+            next: 'SOP1_STEP1',
+            contextUpdate: { gameSource: '挑出的排查游戏', sopMode: 'SOP 1' },
+            style: 'emerald'
+          },
+          {
+            label: '否（需要排查的游戏数量 > 1）→ 转交数值排查',
+            next: 'END_TRANSFER_NUMERIC',
+            style: 'danger'
+          }
+        ]
+      },
+
+      // ==================== 阶段 2：SOP 1 ====================
+      'SOP1_STEP1': {
+        stage: '阶段 2：SOP 1（达门槛游戏排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_1：本月游戏整体 RTP < 99% 吗？',
+        instruction: {
+          type: 'table',
+          title: '请至「后台数据报表 -> 游戏报表」搜索目标游戏 G（红字为可替换部分）',
+          headers: ['统计周期', '时间区间', '统计方式', '游戏类型', '游戏', '房间/单线投注', '包网', '代理', '币种'],
+          values: ['月统计', '(默认)', '按游戏统计', 'G 的类型', 'G 的名称', '(默认)', '业主所属包网', '业主所属代理', '全部币种']
+        },
+        options: [
+          { label: '是（游戏整体 RTP < 99%）', next: 'S1_1_FOCUS', style: 'emerald' },
+          { label: '否（游戏整体 RTP >= 99%）', next: 'S1_2', style: 'secondary' }
+        ]
+      },
+
+      'S1_1_FOCUS': {
+        stage: '阶段 2：SOP 1（达门槛游戏排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_1_focus：目标游戏 G 是否为「重点游戏」？',
+        instruction: {
+          type: 'keygames',
+          title: '重点游戏对照清单'
+        },
+        options: [
+          {
+            label: '是（为重点游戏）→ 正常结案：以本月为排查时间，公版 + 话术 1, 3, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'thisMonth',
+              periodLabel: '以本月为排查时间',
+              scripts: [1, 3, 4],
+              ruleSummary: 'SOP 1｜本月整体 RTP < 99%｜重点游戏 → 公版 + 话术 1, 3, 4'
+            },
+            style: 'emerald'
+          },
+          {
+            label: '否（非重点游戏）→ 正常结案：以本月为排查时间，公版 + 话术 1, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'thisMonth',
+              periodLabel: '以本月为排查时间',
+              scripts: [1, 4],
+              ruleSummary: 'SOP 1｜本月整体 RTP < 99%｜非重点游戏 → 公版 + 话术 1, 4'
+            },
+            style: 'primary'
+          }
+        ]
+      },
+
+      'S1_2': {
+        stage: '阶段 2：SOP 1（达门槛游戏排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_2：回报日期 >= 7 吗？',
+        instruction: {
+          type: 'info',
+          title: '日期跨度判断',
+          text: '因本月游戏整体 RTP >= 99%，请确认业主回报日期是否在本月 7 号（含）之后。'
+        },
+        options: [
+          { label: '是（回报日期 >= 7）→ 结论：转交数值排查', next: 'END_TRANSFER_NUMERIC', style: 'danger' },
+          { label: '否（回报日期 < 7，即 1~6 号）→ 扩大至上个月 1 号 ~ 今日查询', next: 'S1_3', style: 'primary' }
+        ]
+      },
+
+      'S1_3': {
+        stage: '阶段 2：SOP 1（扩大区间排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_3：在「上个月 1 号 ~ 今日」区间内，玩家 RTP < 99% 吗？',
+        instruction: {
+          type: 'table',
+          title: '请至「后台数据报表 -> 玩家报表」，以上个月 1 号 ~ 今日为排查时间重新搜索',
+          headers: ['时间区间', '统计方式', '游戏类型', '选择游戏', '房间/单线', '统计周期', '包网/代理/币种', '玩家账号', '玩家 ID'],
+          values: ['上个月 1 号 ~ 今日', '按游戏统计', 'G 的类型', 'G 的名称', '(默认)', '所有时间统计', '(默认)', '业主回报的玩家账号', '(空)']
+        },
+        options: [
+          { label: '是（区间内玩家 RTP < 99%）', next: 'S1_3_A', style: 'primary' },
+          { label: '否（区间内玩家 RTP >= 99%）', next: 'S1_3_B', style: 'secondary' }
+        ]
+      },
+
+      'S1_3_A': {
+        stage: '阶段 2：SOP 1（扩大区间排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_3a：扩大排查「游戏报表」（上个月 1 号 ~ 今日），游戏整体 RTP < 99% 吗？',
+        instruction: {
+          type: 'table',
+          title: '请至「后台数据报表 -> 游戏报表」，以上个月 1 号 ~ 今日重新搜索游戏 G',
+          headers: ['统计周期', '时间区间', '统计方式', '游戏类型', '游戏', '房间/单线投注', '包网', '代理', '币种'],
+          values: ['所有时间统计', '上个月 1 号 ~ 今日', '按游戏统计', 'G 的类型', 'G 的名称', '(默认)', '业主所属包网', '业主所属代理', '全部币种']
+        },
+        options: [
+          { label: '是（区间游戏整体 RTP < 99%）', next: 'S1_3_A_FOCUS_YES', style: 'emerald' },
+          { label: '否（区间游戏整体 RTP >= 99%）', next: 'S1_3_A_FOCUS_NO', style: 'secondary' }
+        ]
+      },
+
+      'S1_3_A_FOCUS_YES': {
+        stage: '阶段 2：SOP 1（扩大区间排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_3a-1：目标游戏 G 是否为「重点游戏」？',
+        instruction: { type: 'keygames', title: '重点游戏对照清单' },
+        options: [
+          {
+            label: '是（为重点游戏）→ 以上个月 1 号 ~ 今日为排查时间，公版 + 话术 1, 3, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'lastMonthToToday',
+              periodLabel: '以上个月 1 号 ~ 今日为排查时间',
+              scripts: [1, 3, 4],
+              ruleSummary: 'SOP 1｜上月1号~今日 玩家RTP<99% 且 游戏RTP<99%｜重点游戏 → 公版 + 话术 1, 3, 4'
+            },
+            style: 'emerald'
+          },
+          {
+            label: '否（非重点游戏）→ 以上个月 1 号 ~ 今日为排查时间，公版 + 话术 1, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'lastMonthToToday',
+              periodLabel: '以上个月 1 号 ~ 今日为排查时间',
+              scripts: [1, 4],
+              ruleSummary: 'SOP 1｜上月1号~今日 玩家RTP<99% 且 游戏RTP<99%｜非重点游戏 → 公版 + 话术 1, 4'
+            },
+            style: 'primary'
+          }
+        ]
+      },
+
+      'S1_3_A_FOCUS_NO': {
+        stage: '阶段 2：SOP 1（扩大区间排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_3a-2：目标游戏 G 是否为「重点游戏」？',
+        instruction: { type: 'keygames', title: '重点游戏对照清单' },
+        options: [
+          {
+            label: '是（为重点游戏）→ 以上个月 1 号 ~ 今日为排查时间，公版 + 话术 3',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'lastMonthToToday',
+              periodLabel: '以上个月 1 号 ~ 今日为排查时间',
+              scripts: [3],
+              ruleSummary: 'SOP 1｜上月1号~今日 玩家RTP<99% 且 游戏RTP>=99%｜重点游戏 → 公版 + 话术 3'
+            },
+            style: 'emerald'
+          },
+          {
+            label: '否（非重点游戏）→ 以上个月 1 号 ~ 今日为排查时间，仅公版',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'lastMonthToToday',
+              periodLabel: '以上个月 1 号 ~ 今日为排查时间',
+              scripts: [],
+              ruleSummary: 'SOP 1｜上月1号~今日 玩家RTP<99% 且 游戏RTP>=99%｜非重点游戏 → 仅公版'
+            },
+            style: 'primary'
+          }
+        ]
+      },
+
+      'S1_3_B': {
+        stage: '阶段 2：SOP 1（扩大区间排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_3b：扩大排查「游戏报表」（上个月 1 号 ~ 今日），游戏整体 RTP < 99% 吗？',
+        instruction: {
+          type: 'table',
+          title: '请至「后台数据报表 -> 游戏报表」，以上个月 1 号 ~ 今日重新搜索游戏 G',
+          headers: ['统计周期', '时间区间', '统计方式', '游戏类型', '游戏', '房间/单线投注', '包网', '代理', '币种'],
+          values: ['所有时间统计', '上个月 1 号 ~ 今日', '按游戏统计', 'G 的类型', 'G 的名称', '(默认)', '业主所属包网', '业主所属代理', '全部币种']
+        },
+        options: [
+          { label: '是（区间游戏整体 RTP < 99%）', next: 'S1_3_B_FOCUS_YES', style: 'emerald' },
+          { label: '否（区间游戏整体 RTP >= 99%）→ 结论：转交数值排查', next: 'END_TRANSFER_NUMERIC', style: 'danger' }
+        ]
+      },
+
+      'S1_3_B_FOCUS_YES': {
+        stage: '阶段 2：SOP 1（扩大区间排查）',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        title: '节点 S1_3b-1：目标游戏 G 是否为「重点游戏」？',
+        instruction: { type: 'keygames', title: '重点游戏对照清单' },
+        options: [
+          {
+            label: '是（为重点游戏）→ 以上个月 1 号 ~ 今日为排查时间，公版 + 话术 1, 3, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'lastMonthToToday',
+              periodLabel: '以上个月 1 号 ~ 今日为排查时间',
+              scripts: [1, 3, 4],
+              ruleSummary: 'SOP 1｜上月1号~今日 玩家RTP>=99% 且 游戏RTP<99%｜重点游戏 → 公版 + 话术 1, 3, 4'
+            },
+            style: 'emerald'
+          },
+          {
+            label: '否（非重点游戏）→ 以上个月 1 号 ~ 今日为排查时间，公版 + 话术 1, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'lastMonthToToday',
+              periodLabel: '以上个月 1 号 ~ 今日为排查时间',
+              scripts: [1, 4],
+              ruleSummary: 'SOP 1｜上月1号~今日 玩家RTP>=99% 且 游戏RTP<99%｜非重点游戏 → 公版 + 话术 1, 4'
+            },
+            style: 'primary'
+          }
+        ]
+      },
+
+      // ==================== 阶段 3：SOP 2 ====================
+      'SOP2_STEP1': {
+        stage: '阶段 3：SOP 2（未达门槛指定游戏排查）',
+        badgeColor: 'bg-amber-100 text-amber-800',
+        title: '节点 S2_1：本月游戏整体 RTP < 99% 吗？',
+        instruction: {
+          type: 'table',
+          title: '请至「后台数据报表 -> 游戏报表」搜索业主回报的游戏',
+          headers: ['统计周期', '时间区间', '统计方式', '游戏类型', '游戏', '房间/单线投注', '包网', '代理', '币种'],
+          values: ['月统计', '(默认)', '按游戏统计', '业主回报游戏的类型', '业主回报游戏的名称', '(默认)', '业主所属包网', '业主所属代理', '全部币种']
+        },
+        options: [
+          { label: '是（游戏整体 RTP < 99%）', next: 'S2_FOCUS_YES', style: 'emerald' },
+          { label: '否（游戏整体 RTP >= 99%）', next: 'S2_FOCUS_NO', style: 'secondary' }
+        ]
+      },
+
+      'S2_FOCUS_YES': {
+        stage: '阶段 3：SOP 2（未达门槛指定游戏排查）',
+        badgeColor: 'bg-amber-100 text-amber-800',
+        title: '节点 S2_1a：业主回报的游戏是否为「重点游戏」？',
+        instruction: { type: 'keygames', title: '重点游戏对照清单' },
+        options: [
+          {
+            label: '是（为重点游戏）→ 正常结案：以本月为排查时间，公版 + 话术 1, 2, 3, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'thisMonth',
+              periodLabel: '以本月为排查时间',
+              scripts: [1, 2, 3, 4],
+              ruleSummary: 'SOP 2｜游戏整体 RTP < 99%｜重点游戏 → 公版 + 话术 1, 2, 3, 4'
+            },
+            style: 'emerald'
+          },
+          {
+            label: '否（非重点游戏）→ 正常结案：以本月为排查时间，公版 + 话术 1, 2, 4',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'thisMonth',
+              periodLabel: '以本月为排查时间',
+              scripts: [1, 2, 4],
+              ruleSummary: 'SOP 2｜游戏整体 RTP < 99%｜非重点游戏 → 公版 + 话术 1, 2, 4'
+            },
+            style: 'primary'
+          }
+        ]
+      },
+
+      'S2_FOCUS_NO': {
+        stage: '阶段 3：SOP 2（未达门槛指定游戏排查）',
+        badgeColor: 'bg-amber-100 text-amber-800',
+        title: '节点 S2_1b：业主回报的游戏是否为「重点游戏」？',
+        instruction: { type: 'keygames', title: '重点游戏对照清单' },
+        options: [
+          {
+            label: '是（为重点游戏）→ 正常结案：以本月为排查时间，公版 + 话术 2, 3',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'thisMonth',
+              periodLabel: '以本月为排查时间',
+              scripts: [2, 3],
+              ruleSummary: 'SOP 2｜游戏整体 RTP >= 99%｜重点游戏 → 公版 + 话术 2, 3'
+            },
+            style: 'emerald'
+          },
+          {
+            label: '否（非重点游戏）→ 正常结案：以本月为排查时间，公版 + 话术 2',
+            next: 'END_REPORT',
+            reportConfig: {
+              periodType: 'thisMonth',
+              periodLabel: '以本月为排查时间',
+              scripts: [2],
+              ruleSummary: 'SOP 2｜游戏整体 RTP >= 99%｜非重点游戏 → 公版 + 话术 2'
+            },
+            style: 'primary'
+          }
+        ]
+      },
+
+      // ==================== 终点结案节点 ====================
+      'END_ASK_REASON': {
+        stage: '结案结论',
+        badgeColor: 'bg-slate-200 text-slate-800',
+        isTerminal: true,
+        terminalType: 'ask',
+        title: '询问业主要排查的原因',
+        description: '玩家报表中没有任何游戏同时符合「总投注 > 1,000、总盈亏 < -500、注单数 > N」之排查门槛，请直接回复业主询问具体欲排查的原因或异常情况。'
+      },
+
+      'END_TRANSFER_NUMERIC': {
+        stage: '结案结论',
+        badgeColor: 'bg-rose-100 text-rose-800',
+        isTerminal: true,
+        terminalType: 'transfer',
+        title: '转交数值排查',
+        description: '依据排查 SOP 规范（符合条件游戏大于 1 款，或目标游戏/玩家在规定周期内 RTP 皆 >= 99% 需深入分析），请整理玩家账号与游戏资讯，直接转交数值团队进行深度排查。'
+      },
+
+      'END_REPORT': {
+        stage: '结案结论：生成标准回复报告',
+        badgeColor: 'bg-emerald-100 text-emerald-800',
+        isTerminal: true,
+        terminalType: 'report',
+        title: '排查正常！请于下方填写数据并生成公版回复'
+      }
+    };
+
+    // 应用程序状态
+    let appState = {
+      currentNodeId: 'START',
+      history: [],
+      context: {},
+      activeReportConfig: null,
+      games: [
+        {
+          id: 1,
+          name: '',
+          gameRounds: '',
+          gameRtp: '',
+          gameBet: '',
+          gamePayout: '',
+          gameProfit: '',
+          playerRounds: '',
+          playerRtp: '',
+          playerBet: '',
+          playerPayout: '',
+          playerProfit: ''
+        }
+      ]
+    };
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      renderWizardNode();
+      renderGameEntries();
+      updateReportPreview();
+    });
+
+    // 分页切换
+    function switchMainTab(tabName) {
+      const wizardPanel = document.getElementById('panel-wizard');
+      const refPanel = document.getElementById('panel-reference');
+      const btnWizard = document.getElementById('tab-btn-wizard');
+      const btnRef = document.getElementById('tab-btn-reference');
+
+      if (tabName === 'wizard') {
+        wizardPanel.classList.remove('hidden');
+        refPanel.classList.add('hidden');
+        btnWizard.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 bg-indigo-600 text-white shadow';
+        btnRef.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 text-slate-300 hover:text-white';
+      } else {
+        wizardPanel.classList.add('hidden');
+        refPanel.classList.remove('hidden');
+        btnRef.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 bg-indigo-600 text-white shadow';
+        btnWizard.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 text-slate-300 hover:text-white';
+      }
+    }
+
+    // 渲染当前决策步骤卡片
+    function renderWizardNode() {
+      const node = DECISION_NODES[appState.currentNodeId];
+      const card = document.getElementById('wizard-card');
+      const stageBadge = document.getElementById('stage-badge');
+      const stepCountBadge = document.getElementById('step-count-badge');
+      const btnPrev = document.getElementById('btn-prev-step');
+      const generatorSection = document.getElementById('generator-section');
+
+      stageBadge.textContent = node.stage;
+      stageBadge.className = `inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${node.badgeColor}`;
+      stepCountBadge.textContent = `第 ${appState.history.length + 1} 步`;
+      btnPrev.disabled = appState.history.length === 0;
+
+      // 重新触发动画
+      card.classList.remove('step-fade-in');
+      void card.offsetWidth;
+      card.classList.add('step-fade-in');
+
+      if (node.isTerminal) {
+        if (node.terminalType === 'report') {
+          const cfg = appState.activeReportConfig;
+          const scriptsText = cfg.scripts.length > 0 ? `公版 + 话术 ${cfg.scripts.join(', ')}` : '仅使用公版（无额外话术）';
+
+          card.innerHTML = `
+            <div class="bg-emerald-600 px-6 py-4 text-white flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h2 class="text-lg font-bold">${node.title}</h2>
+              </div>
+              <span class="px-2.5 py-1 rounded-lg bg-white/20 text-xs font-semibold">${cfg.periodLabel}</span>
+            </div>
+            <div class="p-6 space-y-4">
+              <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div class="text-xs font-semibold text-emerald-700 uppercase">决策结论路径</div>
+                  <div class="text-sm font-bold text-emerald-950 mt-0.5">${cfg.ruleSummary}</div>
+                </div>
+                <div class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold shrink-0 text-center">
+                  ${scriptsText}
+                </div>
+              </div>
+              <p class="text-xs text-slate-600">
+                系统已自动将「排查时间周期」与「对应话术勾选项目」套用至下方的智慧公版生成器，请填入后台报表数值即可一键复制报告。
+              </p>
+            </div>
+          `;
+          generatorSection.classList.remove('hidden');
+        } else if (node.terminalType === 'transfer') {
+          card.innerHTML = `
+            <div class="bg-rose-600 px-6 py-4 text-white flex items-center gap-2.5">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h2 class="text-lg font-bold">结案动作：${node.title}</h2>
+            </div>
+            <div class="p-6 space-y-4">
+              <div class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-sm leading-relaxed font-medium">
+                ${node.description}
+              </div>
+              <div class="flex flex-wrap gap-3 pt-2">
+                <button onclick="resetWizard()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition">
+                  开始新的排查案件
+                </button>
+                <button onclick="goBackStep()" class="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 transition">
+                  返回上一步重新确认
+                </button>
+              </div>
+            </div>
+          `;
+          generatorSection.classList.add('hidden');
+        } else {
+          card.innerHTML = `
+            <div class="bg-amber-600 px-6 py-4 text-white flex items-center gap-2.5">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h2 class="text-lg font-bold">结案动作：${node.title}</h2>
+            </div>
+            <div class="p-6 space-y-4">
+              <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-sm leading-relaxed font-medium">
+                ${node.description}
+              </div>
+              <div class="flex flex-wrap gap-3 pt-2">
+                <button onclick="resetWizard()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition">
+                  开始新的排查案件
+                </button>
+                <button onclick="goBackStep()" class="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 transition">
+                  返回上一步重新确认
+                </button>
+              </div>
+            </div>
+          `;
+          generatorSection.classList.add('hidden');
+        }
+        renderHistory();
+        return;
+      }
+
+      // 非终点节点：渲染指引区与选项按钮
+      let instructionHtml = '';
+      if (node.instruction) {
+        if (node.instruction.type === 'info') {
+          instructionHtml = `
+            <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 space-y-1">
+              <div class="text-xs font-bold uppercase tracking-wide text-blue-700">${node.instruction.title}</div>
+              <p class="text-sm leading-relaxed">${node.instruction.text}</p>
+            </div>
+          `;
+        } else if (node.instruction.type === 'criteria') {
+          instructionHtml = `
+            <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
+              <div class="text-xs font-bold uppercase tracking-wide text-amber-800">${node.instruction.title}</div>
+              <ul class="space-y-1 text-sm font-medium">
+                ${node.instruction.items.map(item => `<li>${item}</li>`).join('')}
+              </ul>
+            </div>
+          `;
+        } else if (node.instruction.type === 'table') {
+          instructionHtml = `
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <div class="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>${node.instruction.title}</span>
+              </div>
+              <div class="overflow-x-auto rounded-lg border border-slate-300">
+                <table class="min-w-full text-xs text-center divide-y divide-slate-200">
+                  <thead class="bg-slate-200/80 text-slate-700 font-semibold">
+                    <tr>${node.instruction.headers.map(h => `<th class="px-2.5 py-1.5 whitespace-nowrap">${h}</th>`).join('')}</tr>
+                  </thead>
+                  <tbody class="bg-white divide-x divide-slate-200">
+                    <tr>${node.instruction.values.map(v => `<td class="px-2.5 py-2 whitespace-nowrap font-medium ${v.includes('G') || v.includes('上个月') ? 'text-rose-600 font-bold' : 'text-slate-700'}">${v}</td>`).join('')}</tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        } else if (node.instruction.type === 'keygames') {
+          instructionHtml = `
+            <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2 text-xs">
+              <div class="font-bold text-emerald-900">${node.instruction.title}</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div class="p-2.5 bg-white rounded-lg border border-emerald-200">
+                  <span class="font-bold text-indigo-700 block mb-1">PG电子重点游戏：</span>
+                  <span class="text-slate-800 font-medium">麻将胡了、麻将胡了 2、寻宝黄金城、赏金大对决</span>
+                </div>
+                <div class="p-2.5 bg-white rounded-lg border border-emerald-200">
+                  <span class="font-bold text-teal-700 block mb-1">SS棋牌重点游戏：</span>
+                  <span class="text-slate-800 font-medium">抢庄牛牛、看三张抢庄牛牛、看四张抢庄牛牛</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      const btnStyles = {
+        primary: 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-sm',
+        secondary: 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300',
+        emerald: 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent shadow-sm',
+        amber: 'bg-amber-600 hover:bg-amber-700 text-white border-transparent shadow-sm',
+        danger: 'bg-rose-600 hover:bg-rose-700 text-white border-transparent shadow-sm'
+      };
+
+      card.innerHTML = `
+        <div class="p-6 space-y-5">
+          ${appState.context.sopMode ? `
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
+              <span>当前路径：${appState.context.sopMode}</span>
+              ${appState.context.gameSource ? `<span>｜目标对象：${appState.context.gameSource}</span>` : ''}
+            </div>
+          ` : ''}
+
+          <div>
+            <h2 class="text-xl font-bold text-slate-900 leading-snug">${node.title}</h2>
+          </div>
+
+          ${instructionHtml}
+
+          <div class="pt-2 space-y-2.5">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">请选择排查结果：</div>
+            <div class="grid grid-cols-1 gap-3">
+              ${node.options.map((opt, idx) => `
+                <button onclick="selectWizardOption(${idx})"
+                  class="w-full text-left px-5 py-3.5 rounded-xl border text-sm font-semibold transition-all flex items-center justify-between group ${btnStyles[opt.style || 'primary']}">
+                  <span>${opt.label}</span>
+                  <svg class="w-5 h-5 opacity-75 group-hover:translate-x-1 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+
+      renderHistory();
+    }
+
+    // 选择决策选项
+    function selectWizardOption(optionIndex) {
+      const node = DECISION_NODES[appState.currentNodeId];
+      const option = node.options[optionIndex];
+
+      appState.history.push({
+        nodeId: appState.currentNodeId,
+        question: node.title,
+        answer: option.label
+      });
+
+      if (option.contextUpdate) {
+        appState.context = { ...appState.context, ...option.contextUpdate };
+      }
+
+      if (option.reportConfig) {
+        appState.activeReportConfig = option.reportConfig;
+        applyReportConfigToGenerator(option.reportConfig);
+      }
+
+      appState.currentNodeId = option.next;
+      renderWizardNode();
+
+      if (option.next === 'END_REPORT') {
+        setTimeout(() => {
+          document.getElementById('generator-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+      }
+    }
+
+    // 返回上一步
+    function goBackStep() {
+      if (appState.history.length === 0) return;
+      const last = appState.history.pop();
+      appState.currentNodeId = last.nodeId;
+      if (appState.history.length === 0) {
+        appState.context = {};
+      }
+      renderWizardNode();
+    }
+
+    // 一键重置
+    function resetWizard() {
+      appState.currentNodeId = 'START';
+      appState.history = [];
+      appState.context = {};
+      appState.activeReportConfig = null;
+      document.getElementById('generator-section').classList.add('hidden');
+      renderWizardNode();
+      showToast('已重置排查流程至初始状态', 'info');
+    }
+
+    // 直接展开话术生成器
+    function jumpDirectToGenerator() {
+      const gen = document.getElementById('generator-section');
+      gen.classList.remove('hidden');
+      gen.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 渲染右侧历史轨迹
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      const count = document.getElementById('history-count');
+      count.textContent = `${appState.history.length} 项记录`;
+
+      if (appState.history.length === 0) {
+        list.innerHTML = `<p class="text-xs text-slate-400 italic py-4 text-center">尚未进行决策，请依左侧提示操作。</p>`;
+        return;
+      }
+
+      list.innerHTML = appState.history.map((item, idx) => `
+        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>步骤 ${idx + 1}</span>
+          </div>
+          <div class="font-medium text-slate-600 line-clamp-1">${item.question}</div>
+          <div class="font-bold text-indigo-700">→ ${item.answer}</div>
+        </div>
+      `).join('');
+    }
+
+    // 将决策结果套用至话术生成器
+    function applyReportConfigToGenerator(cfg) {
+      document.getElementById('chk-script-1').checked = cfg.scripts.includes(1);
+      document.getElementById('chk-script-2').checked = cfg.scripts.includes(2);
+      document.getElementById('chk-script-3').checked = cfg.scripts.includes(3);
+      document.getElementById('chk-script-4').checked = cfg.scripts.includes(4);
+
+      const badge = document.getElementById('script-rule-badge');
+      badge.textContent = cfg.scripts.length > 0 ? `公版 + 话术 ${cfg.scripts.join(', ')}` : '仅公版';
+      document.getElementById('generator-subtitle').textContent = `决策结论：${cfg.ruleSummary}`;
+
+      setQuickPeriod(cfg.periodType);
+      updateReportPreview();
+    }
+
+    // 快捷设定时间周期
+    function setQuickPeriod(type) {
+      const now = new Date();
+      const input = document.getElementById('input-time-period');
+      if (type === 'thisMonth') {
+        input.value = `${now.getMonth() + 1} 月`;
+      } else if (type === 'lastMonthToToday') {
+        const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+        const todayMonth = now.getMonth() + 1;
+        const todayDate = now.getDate();
+        input.value = `${prevMonth}/1 ~ ${todayMonth}/${todayDate}`;
+      }
+      updateReportPreview();
+    }
+
+    // 游戏类型切换
+    function handleGameTypeChange() {
+      const sel = document.getElementById('input-game-type').value;
+      const customInput = document.getElementById('input-custom-game-type');
+      if (sel === '自定义') {
+        customInput.classList.remove('hidden');
+      } else {
+        customInput.classList.add('hidden');
+      }
+      renderGameEntries();
+      updateReportPreview();
+    }
+
+    // 新增一款游戏明细
+    function addGameEntry() {
+      const nextId = appState.games.length + 1;
+      appState.games.push({
+        id: nextId,
+        name: '',
+        gameRounds: '',
+        gameRtp: '',
+        gameBet: '',
+        gamePayout: '',
+        gameProfit: '',
+        playerRounds: '',
+        playerRtp: '',
+        playerBet: '',
+        playerPayout: '',
+        playerProfit: ''
+      });
+      renderGameEntries();
+      updateReportPreview();
+    }
+
+    // 移除一款游戏明细
+    function removeGameEntry(index) {
+      if (appState.games.length <= 1) return;
+      appState.games.splice(index, 1);
+      renderGameEntries();
+      updateReportPreview();
+    }
+
+    // 更新单一游戏栏位
+    function updateGameField(index, field, value) {
+      appState.games[index][field] = value;
+      updateReportPreview();
+    }
+
+    // 快速选择重点游戏名称
+    function selectQuickGameName(index, gameName) {
+      appState.games[index].name = gameName;
+      renderGameEntries();
+      updateReportPreview();
+    }
+
+    // 渲染动态游戏表单卡片
+    function renderGameEntries() {
+      const container = document.getElementById('games-container');
+      const nextNumSpan = document.getElementById('next-game-num');
+      nextNumSpan.textContent = appState.games.length + 1;
+
+      const gameType = document.getElementById('input-game-type').value;
+      const keyGameList = KEY_GAMES[gameType] || [];
+
+      container.innerHTML = appState.games.map((g, idx) => `
+        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span class="text-xs font-bold text-indigo-700">排查游戏 #${idx + 1}</span>
+            ${appState.games.length > 1 ? `
+              <button type="button" onclick="removeGameEntry(${idx})" class="text-xs text-rose-600 hover:text-rose-800 font-medium">
+                删除此款游戏
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- 游戏名称与重点游戏快选 -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">排查游戏名称</label>
+            <input type="text" value="${escapeHtml(g.name)}" oninput="updateGameField(${idx}, 'name', this.value)"
+              placeholder="输入游戏名称（例如：看三张抢庄牛牛）"
+              class="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+            ${keyGameList.length > 0 ? `
+              <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span class="text-[11px] text-slate-400">重点游戏快选：</span>
+                ${keyGameList.map(kg => `
+                  <button type="button" onclick="selectQuickGameName(${idx}, '${kg}')"
+                    class="text-[11px] px-2 py-0.5 rounded-md border transition ${g.name === kg ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-indigo-50'}">
+                    ${kg}
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- 游戏整体数据 -->
+          <div class="space-y-1.5">
+            <div class="text-[11px] font-bold text-slate-500 uppercase">游戏整体数据（游戏报表）</div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">游戏总局数</label>
+                <input type="text" value="${escapeHtml(g.gameRounds)}" oninput="updateGameField(${idx}, 'gameRounds', this.value)" placeholder="1,753"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">总 RTP</label>
+                <input type="text" value="${escapeHtml(g.gameRtp)}" oninput="updateGameField(${idx}, 'gameRtp', this.value)" placeholder="97.85%"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">总投注</label>
+                <input type="text" value="${escapeHtml(g.gameBet)}" oninput="updateGameField(${idx}, 'gameBet', this.value)" placeholder="32,207"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">总派彩</label>
+                <input type="text" value="${escapeHtml(g.gamePayout)}" oninput="updateGameField(${idx}, 'gamePayout', this.value)" placeholder="33,472"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">总盈亏</label>
+                <input type="text" value="${escapeHtml(g.gameProfit)}" oninput="updateGameField(${idx}, 'gameProfit', this.value)" placeholder="+734"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- 玩家个人数据 -->
+          <div class="space-y-1.5">
+            <div class="text-[11px] font-bold text-slate-500 uppercase">玩家个人数据（玩家报表）</div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">玩家游戏局数</label>
+                <input type="text" value="${escapeHtml(g.playerRounds)}" oninput="updateGameField(${idx}, 'playerRounds', this.value)" placeholder="97"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">玩家RTP</label>
+                <input type="text" value="${escapeHtml(g.playerRtp)}" oninput="updateGameField(${idx}, 'playerRtp', this.value)" placeholder="101.5%"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">玩家投注</label>
+                <input type="text" value="${escapeHtml(g.playerBet)}" oninput="updateGameField(${idx}, 'playerBet', this.value)" placeholder="1,218"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">玩家派彩</label>
+                <input type="text" value="${escapeHtml(g.playerPayout)}" oninput="updateGameField(${idx}, 'playerPayout', this.value)" placeholder="1,236"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">玩家盈亏</label>
+                <input type="text" value="${escapeHtml(g.playerProfit)}" oninput="updateGameField(${idx}, 'playerProfit', this.value)" placeholder="+18"
+                  class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white outline-none focus:border-indigo-500">
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 实时生成标准公版报告字符串（标准简体中文）
+    function updateReportPreview() {
+      const s1 = document.getElementById('chk-script-1').checked;
+      const s2 = document.getElementById('chk-script-2').checked;
+      const s3 = document.getElementById('chk-script-3').checked;
+      const s4 = document.getElementById('chk-script-4').checked;
+
+      const playerAccount = document.getElementById('input-player-account').value.trim() || '{玩家账号}';
+      const timePeriod = document.getElementById('input-time-period').value.trim() || '{排查时间}';
+
+      const rawGameType = document.getElementById('input-game-type').value;
+      const gameType = rawGameType === '自定义'
+        ? (document.getElementById('input-custom-game-type').value.trim() || '{排查游戏供应商}')
+        : rawGameType;
+
+      // 组合游戏名称清单（以顿号分隔）
+      const gameNamesList = appState.games.map((g, i) => g.name.trim() || `{排查游戏名称 ${i + 1}}`);
+      const joinedGameNames = gameNamesList.join('、');
+
+      // 1. 排查结论区块
+      let conclusionLines = [
+        '====== 【排查结论】 ======',
+        '★ 判断结果正常'
+      ];
+      if (s1) {
+        conclusionLines.push(`‧ ${timePeriod} 游戏整体数据稳定，确保业主正盈利。`);
+      }
+      if (s2) {
+        conclusionLines.push(`‧ ${timePeriod} 玩家根据当前单数，数据易产生波动。`);
+      }
+      conclusionLines.push('‧ 综观玩家整体历程，正盈利局数与盈利金额稳定，落于随机开奖结果。');
+      conclusionLines.push('‧ 逐局排查玩家高盈利局，游戏内容正常。');
+
+      // 2. 整体资讯与各游戏明细区块
+      let infoLines = [
+        '====== 【整体资讯】 ======',
+        `排查玩家账号：${playerAccount}`,
+        `排查时间周期：${timePeriod}`,
+        '',
+        `游戏类型：${gameType}`,
+        `排查游戏：${joinedGameNames}`
+      ];
+
+      appState.games.forEach((g, idx) => {
+        const gName = g.name.trim() || `{排查游戏名称 ${idx + 1}}`;
+        infoLines.push('');
+        infoLines.push(`『${gName}』`);
+        infoLines.push(`游戏总局数：${g.gameRounds.trim() || '{游戏总局数}'}`);
+        infoLines.push(`总 RTP：${g.gameRtp.trim() || '{游戏总RTP}'}`);
+        infoLines.push(`总投注：${g.gameBet.trim() || '{游戏总投注}'}`);
+        infoLines.push(`总派彩：${g.gamePayout.trim() || '{游戏总派彩}'}`);
+        infoLines.push(`总盈亏：${g.gameProfit.trim() || '{游戏总亏损}'}`);
+        infoLines.push('');
+        infoLines.push(`玩家游戏局数：${g.playerRounds.trim() || '{玩家总局数}'}`);
+        infoLines.push(`玩家RTP：${g.playerRtp.trim() || '{玩家RTP}'}`);
+        infoLines.push(`玩家投注：${g.playerBet.trim() || '{玩家总投注}'}`);
+        infoLines.push(`玩家派彩：${g.playerPayout.trim() || '{玩家总派彩}'}`);
+        infoLines.push(`玩家盈亏：${g.playerProfit.trim() || '{玩家总盈亏}'}`);
+      });
+
+      // 3. 额外资讯区块
+      let extraLines = [
+        '====== 【额外资讯】 ======',
+        '玩家已在关注清单内，若有任何问题，会即时调整。'
+      ];
+
+      if (s3) {
+        extraLines.push('');
+        if (gameType === 'SS棋牌') {
+          extraLines.push('SS 抢庄系列深受玩家喜爱，因其能频繁开出大输赢的规则，赋予玩家盈利的希望并持续投注。');
+        } else {
+          const pgTargetName = appState.games[0].name.trim() || '{重点游戏名称}';
+          extraLines.push(`PG ${pgTargetName} 深受玩家喜爱，其低机率高赔付的大奖设计持续勾引玩家投注。`);
+        }
+      }
+
+      if (s4) {
+        extraLines.push('');
+        extraLines.push('稳定的游戏数据是由盈利玩家及亏损玩家共同组成，两者身份会随游戏过程随机切换。');
+      }
+
+      extraLines.push('');
+      extraLines.push('目前游戏正常，请业主放心。');
+
+      const fullReport = [
+        conclusionLines.join('\n'),
+        '',
+        infoLines.join('\n'),
+        '',
+        extraLines.join('\n')
+      ].join('\n');
+
+      document.getElementById('report-preview').value = fullReport;
+    }
+
+    // 填入图四完整范例数据（简体中文）
+    function fillExampleData() {
+      document.getElementById('chk-script-1').checked = true;
+      document.getElementById('chk-script-2').checked = false;
+      document.getElementById('chk-script-3').checked = true;
+      document.getElementById('chk-script-4').checked = true;
+
+      document.getElementById('input-player-account').value = 'ce4fac4f123e481b';
+      document.getElementById('input-time-period').value = '11 月';
+      document.getElementById('input-game-type').value = 'SS棋牌';
+      document.getElementById('input-custom-game-type').classList.add('hidden');
+
+      appState.games = [
+        {
+          id: 1,
+          name: '看三张抢庄牛牛',
+          gameRounds: '1,753',
+          gameRtp: '97.85%',
+          gameBet: '32,207',
+          gamePayout: '33,472',
+          gameProfit: '+734',
+          playerRounds: '97',
+          playerRtp: '101.5%',
+          playerBet: '1,218',
+          playerPayout: '1,236',
+          playerProfit: '+18'
+        },
+        {
+          id: 2,
+          name: '看四张抢庄牛牛',
+          gameRounds: '755',
+          gameRtp: '97.19%',
+          gameBet: '33,333',
+          gamePayout: '32,395',
+          gameProfit: '+937',
+          playerRounds: '36',
+          playerRtp: '143.57%',
+          playerBet: '1,126',
+          playerPayout: '1,616',
+          playerProfit: '+490'
+        }
+      ];
+
+      renderGameEntries();
+      updateReportPreview();
+      showToast('已加载图四 SS棋牌双游戏范例数据', 'success');
+    }
+
+    // 清空表单数据
+    function clearGeneratorForm() {
+      document.getElementById('input-player-account').value = '';
+      document.getElementById('input-time-period').value = '';
+      appState.games = [
+        {
+          id: 1,
+          name: '',
+          gameRounds: '',
+          gameRtp: '',
+          gameBet: '',
+          gamePayout: '',
+          gameProfit: '',
+          playerRounds: '',
+          playerRtp: '',
+          playerBet: '',
+          playerPayout: '',
+          playerProfit: ''
+        }
+      ];
+      renderGameEntries();
+      updateReportPreview();
+      showToast('已清空表单栏位', 'info');
+    }
+
+    // 一键复制完整报告（使用 execCommand 确保 iFrame 环境兼容）
+    function copyReportText() {
+      const textarea = document.getElementById('report-preview');
+      const btnText = document.getElementById('copy-btn-text');
+      textarea.select();
+      textarea.setSelectionRange(0, 99999);
+      try {
+        const ok = document.execCommand('copy');
+        if (ok) {
+          showToast('完整公版报告已成功复制到剪贴板！', 'success');
+          if (btnText) {
+            btnText.textContent = '已复制成功！';
+            setTimeout(() => {
+              btnText.textContent = '一键复制完整报告';
+            }, 1800);
+          }
+        } else {
+          showToast('复制失败，请手动选取文字复制', 'error');
+        }
+      } catch (err) {
+        showToast('复制发生错误，请手动选取文字复制', 'error');
+      }
+      window.getSelection().removeAllRanges();
+    }
+
+    // 轻量级 Toast 提示组件
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white',
+        info: 'bg-slate-800 text-white',
+        error: 'bg-rose-600 text-white'
+      };
+      toast.className = `px-4 py-3 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 pointer-events-auto step-fade-in ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span>${message}</span>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 2600);
+    }
+
+    // HTML 转义辅助函数
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
