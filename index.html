@@ -1708,6 +1708,29 @@ SS 抢庄系列深受玩家喜爱，因其能频繁开出大输赢的规则，�
     }
 
     // 实时生成标准公版报告字符串（标准简体中文）
+    function formatRtpValue(rawVal, fallbackPlaceholder) {
+      const trimmed = String(rawVal || '').trim();
+      if (!trimmed) return fallbackPlaceholder;
+      return trimmed.endsWith('%') ? trimmed : `${trimmed}%`;
+    }
+
+    // 金额字段无条件舍去小数位（仅保留整数位，保留正负号与千分位格式）
+    function truncateAmountToInteger(rawVal, fallbackPlaceholder) {
+      const trimmed = String(rawVal || '').trim();
+      if (!trimmed) return fallbackPlaceholder;
+
+      // 匹配可选正负号 + 整数部分（支持千分位逗号） + 可选小数点及后续小数
+      const match = trimmed.match(/^([+-]?)\s*([\d,]+)(?:\.\d*)?$/);
+      if (match) {
+        const sign = match[1] || '';
+        const intPart = match[2] || '0';
+        return `${sign}${intPart}`;
+      }
+
+      // 兜底：若包含小数点且无法直接整段匹配，剥离第一个小数点及之后数字
+      return trimmed.replace(/(\d+)\.\d+/g, '$1');
+    }
+
     function updateReportPreview() {
       const s1 = document.getElementById('chk-script-1').checked;
       const s2 = document.getElementById('chk-script-2').checked;
@@ -1752,19 +1775,29 @@ SS 抢庄系列深受玩家喜爱，因其能频繁开出大输赢的规则，�
 
       appState.games.forEach((g, idx) => {
         const gName = g.name.trim() || `{排查游戏名称 ${idx + 1}}`;
+        const gameRtpFormatted = formatRtpValue(g.gameRtp, `{${gName}于排查时间内累积的游戏 RTP}`);
+        const gameBetFormatted = truncateAmountToInteger(g.gameBet, '{游戏总投注}');
+        const gamePayoutFormatted = truncateAmountToInteger(g.gamePayout, '{游戏总派彩}');
+        const gameProfitFormatted = truncateAmountToInteger(g.gameProfit, '{游戏总亏损}');
+
+        const playerRtpFormatted = formatRtpValue(g.playerRtp, `{${gName}于排查时间内累积的玩家 RTP}`);
+        const playerBetFormatted = truncateAmountToInteger(g.playerBet, '{玩家总投注}');
+        const playerPayoutFormatted = truncateAmountToInteger(g.playerPayout, '{玩家总派彩}');
+        const playerProfitFormatted = truncateAmountToInteger(g.playerProfit, '{玩家总盈亏}');
+
         infoLines.push('');
         infoLines.push(`『${gName}』`);
         infoLines.push(`游戏总局数：${g.gameRounds.trim() || '{游戏总局数}'}`);
-        infoLines.push(`总 RTP：${g.gameRtp.trim() || '{游戏总RTP}'}`);
-        infoLines.push(`总投注：${g.gameBet.trim() || '{游戏总投注}'}`);
-        infoLines.push(`总派彩：${g.gamePayout.trim() || '{游戏总派彩}'}`);
-        infoLines.push(`总盈亏：${g.gameProfit.trim() || '{游戏总亏损}'}`);
+        infoLines.push(`总 RTP：${gameRtpFormatted}`);
+        infoLines.push(`总投注：${gameBetFormatted}`);
+        infoLines.push(`总派彩：${gamePayoutFormatted}`);
+        infoLines.push(`总盈亏：${gameProfitFormatted}`);
         infoLines.push('');
         infoLines.push(`玩家游戏局数：${g.playerRounds.trim() || '{玩家总局数}'}`);
-        infoLines.push(`玩家RTP：${g.playerRtp.trim() || '{玩家RTP}'}`);
-        infoLines.push(`玩家投注：${g.playerBet.trim() || '{玩家总投注}'}`);
-        infoLines.push(`玩家派彩：${g.playerPayout.trim() || '{玩家总派彩}'}`);
-        infoLines.push(`玩家盈亏：${g.playerProfit.trim() || '{玩家总盈亏}'}`);
+        infoLines.push(`玩家RTP：${playerRtpFormatted}`);
+        infoLines.push(`玩家投注：${playerBetFormatted}`);
+        infoLines.push(`玩家派彩：${playerPayoutFormatted}`);
+        infoLines.push(`玩家盈亏：${playerProfitFormatted}`);
       });
 
       // 3. 额外资讯区块
